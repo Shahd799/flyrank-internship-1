@@ -1,0 +1,25 @@
+{
+  "honest_average_precision": 0.6113944595078553,
+  "base_rate": 0.5775660739473258,
+  "skill_above_base_rate": 0.03382838556052947,
+  "train_clients": 36,
+  "test_clients": 11,
+  "queue_rows": 43247,
+  "no_go_flagged_rows": 4438,
+  "monitoring_baseline": {
+    "march_impressions": {
+      "mean": 1503.0672329969811,
+      "median": 144.0
+    },
+    "march_clicks": {
+      "mean": 4.240982538148639,
+      "median": 0.0
+    },
+    "march_position": {
+      "mean": 15.932402394555897,
+      "median": 8.333333333333334
+    },
+    "honest_ap_at_training_time": 0.6113944595078553,
+    "base_rate_at_training_time": 0.5775660739473258
+  }
+}
