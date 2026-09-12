@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Which pages decline first? Ranking content refresh priority from search signals</title>
+<meta name="description" content="A validated model for ranking which pages are likely to lose search visibility next month, built on 176,738 pages of production search data.">
+<style>
+  :root {
+    --ink: #1b1e24;
+    --ink-soft: #4a4f5a;
+    --paper: #faf9f6;
+    --paper-line: #ddd8cc;
+    --indigo: #2b3a67;
+    --gold: #b8860b;
+    --good: #2f6b4f;
+    --bad: #a5432f;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --serif: 'Source Serif 4', 'Iowan Old Style', Georgia, serif;
+    --sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    font-size: 17px;
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .wide {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  header.hero {
+    padding: 96px 0 64px;
+    border-bottom: 1px solid var(--paper-line);
+  }
+
+  header.hero .kicker {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--indigo);
+    letter-spacing: 0.02em;
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 2.6rem;
+    line-height: 1.15;
+    margin: 0 0 20px;
+    max-width: 15ch;
+  }
+
+  .subtitle {
+    font-size: 1.15rem;
+    color: var(--ink-soft);
+    max-width: 58ch;
+    margin: 0 0 32px;
+  }
+
+  .headline-stat {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    margin-top: 40px;
+  }
+
+  .stat {
+    min-width: 140px;
+  }
+
+  .stat .num {
+    font-family: var(--serif);
+    font-size: 2.1rem;
+    font-weight: 600;
+    color: var(--indigo);
+  }
+
+  .stat .label {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+
+  section {
+    padding: 56px 0;
+    border-bottom: 1px solid var(--paper-line);
+  }
+
+  section:last-of-type { border-bottom: none; }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin: 0 0 24px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    color: var(--paper-line);
+    font-weight: 500;
+  }
+
+  h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin: 32px 0 10px;
+    color: var(--indigo);
+  }
+
+  p { margin: 0 0 16px; max-width: 68ch; }
+
+  .abstract {
+    background: #fff;
+    border: 1px solid var(--paper-line);
+    padding: 32px;
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.7;
+    margin-bottom: 8px;
+  }
+
+  ul, ol { margin: 0 0 16px; padding-left: 22px; max-width: 66ch; }
+  li { margin-bottom: 8px; }
+
+  code {
+    font-family: var(--mono);
+    background: #efece3;
+    padding: 1px 6px;
+    font-size: 0.9em;
+    border-radius: 2px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0 8px;
+    font-size: 0.95rem;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--paper-line);
+  }
+
+  th {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: none;
+    color: var(--ink-soft);
+    border-bottom: 2px solid var(--ink);
+  }
+
+  td.metric { font-family: var(--mono); }
+
+  tr.highlight td { background: #fbf3df; font-weight: 600; }
+
+  figure {
+    margin: 32px 0 8px;
+    max-width: 900px;
+  }
+
+  figure img {
+    width: 100%;
+    display: block;
+    border: 1px solid var(--paper-line);
+    background: #fff;
+  }
+
+  figcaption {
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    margin-top: 10px;
+    max-width: 68ch;
+  }
+
+  .callout {
+    border-left: 3px solid var(--gold);
+    padding: 4px 20px;
+    background: #fdf8ec;
+    margin: 24px 0;
+  }
+
+  .callout p:last-child { margin-bottom: 0; }
+
+  .limits-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 8px;
+  }
+
+  .limit-card {
+    border: 1px solid var(--paper-line);
+    padding: 18px 20px;
+    background: #fff;
+  }
+
+  .limit-card .tag {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--bad);
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  .limit-card p { margin: 0; font-size: 0.94rem; }
+
+  .rec {
+    border: 1px solid var(--paper-line);
+    padding: 20px 22px;
+    margin-bottom: 16px;
+    background: #fff;
+  }
+
+  .rec .rec-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+
+  .rec .rec-head strong { font-size: 1.02rem; }
+
+  .rec .rec-tag {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--good);
+  }
+
+  .rec p { margin: 0; font-size: 0.95rem; max-width: none; }
+
+  .no-go {
+    border: 1px dashed var(--bad);
+    padding: 18px 22px;
+    margin-top: 20px;
+    background: #fdf2ef;
+  }
+
+  .no-go h3 { color: var(--bad); margin-top: 0; }
+
+  footer {
+    padding: 56px 0 80px;
+  }
+
+  footer .credit {
+    border-top: 1px solid var(--paper-line);
+    padding-top: 32px;
+    margin-top: 8px;
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+  }
+
+  footer .credit a {
+    color: var(--indigo);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid var(--indigo);
+  }
+
+  a { color: var(--indigo); }
+
+  .repro-list a {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    padding: 6px 0;
+  }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 2rem; }
+    header.hero { padding: 64px 0 48px; }
+    section { padding: 40px 0; }
+    .limits-grid { grid-template-columns: 1fr; }
+    .headline-stat { gap: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">RESEARCH NOTE · FLYRANK ML INTERNSHIP CAPSTONE</div>
+    <h1>Which pages lose search visibility first?</h1>
+    <p class="subtitle">
+      A validated, honestly-evaluated model for ranking content refresh priority
+      from one month of search signals — tested against a transparent rule
+      baseline on 176,738 pages of real production search data.
+    </p>
+
+    <div class="abstract">
+      Can a page's own March search signals predict whether it will lose
+      visibility in April, well enough to help an editor decide what to
+      review first? We built and validated a Decision Tree on 176,738 pages
+      from FlyRank's production search warehouse, using a client-grouped
+      split to avoid inflated, leaky estimates. The model reached an
+      Average Precision of 0.611 against a base rate of 0.578 and a
+      transparent rule baseline of 0.587 — a real, modest improvement, not
+      a breakthrough. A naive (non-grouped) split scored a misleadingly
+      higher 0.674, demonstrating exactly how much client-level leakage
+      can inflate a result if the validation design isn't honest. The
+      output is offered as a ranked, human-reviewed content refresh
+      shortlist — decision-support, not certainty.
+    </div>
+
+    <div class="headline-stat">
+      <div class="stat">
+        <div class="num">176,738</div>
+        <div class="label">pages evaluated</div>
+      </div>
+      <div class="stat">
+        <div class="num">0.611</div>
+        <div class="label">honest Average Precision</div>
+      </div>
+      <div class="stat">
+        <div class="num">47</div>
+        <div class="label">clients, held out by group</div>
+      </div>
+      <div class="stat">
+        <div class="num">0</div>
+        <div class="label">shared clients train/test</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="intro">
+  <div class="wrap">
+    <h2><span class="num">01</span> Introduction</h2>
+    <p>
+      Content teams sit on portfolios of thousands of pages and cannot
+      manually review all of them every month. Someone has to decide which
+      pages get attention first — and today, that decision is usually a
+      guess based on whichever page an editor happened to notice.
+    </p>
+    <p>
+      The decision this project supports is narrow and concrete:
+      <strong>given one month of a page's search performance, which pages
+      should a content editor look at first, before the next month's
+      report arrives?</strong> The person acting on the answer is a content
+      editor with a limited review budget. The cost of getting it wrong is
+      real but bounded either way: a wasted review, or a real decline left
+      unreviewed for another month.
+    </p>
+    <p>
+      A single hand-written rule can already do part of this job. The
+      question this paper actually answers is whether a small, readable
+      model can do it a little better than that rule — and whether the
+      way we measure "better" can be trusted.
+    </p>
+  </div>
+</section>
+
+<section id="data">
+  <div class="wide">
+    <h2><span class="num">02</span> Data</h2>
+    <p>
+      This project uses the <code>fact_content_daily_performance</code>
+      table from the FlyRank internship warehouse release, hosted on
+      Hugging Face. Two mid-panel months were used: March 2026 as the
+      feature window and April 2026 as the outcome window. The final month
+      in the panel (June 2026) was treated as a sealed test month and was
+      never used to develop any label or feature logic.
+    </p>
+
+    <table>
+      <tr><th>Slice</th><th>Rows (page-days)</th><th>Date range</th></tr>
+      <tr><td>March 2026 partition</td><td class="metric">9,841,378</td><td>2026-03-01 → 2026-03-31</td></tr>
+      <tr><td>April 2026 partition</td><td class="metric">10,424,730</td><td>2026-04-01 → 2026-04-30</td></tr>
+      <tr><td>Pages after aggregation &amp; filtering</td><td class="metric">176,738</td><td>one row per (client, page)</td></tr>
+    </table>
+
+    <p>
+      Page-day rows were grouped and summed to one row per client-page pair
+      per month before any modeling — the unit of analysis is a page, not
+      a page-day.
+    </p>
+
+    <h3>Excluded, and why</h3>
+    <ul>
+      <li><code>trend_direction</code>, <code>trend_pct</code> — rule-derived
+        columns. Using either as a label or feature risks the model
+        re-learning a threshold rule instead of finding real signal.</li>
+      <li>AI-referral columns — largely missing outside GA4-available rows,
+        not needed for this question.</li>
+      <li>All client and content identifiers are pseudonymized hashes, used
+        only to group and split data — never as model inputs, and never
+        displayed.</li>
+    </ul>
+
+    <div class="callout">
+      <p>
+        Public-safety note: no client names, raw search queries, or private
+        identifiers appear anywhere in this page, the underlying notebooks,
+        or the repository.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section id="methodology">
+  <div class="wide">
+    <h2><span class="num">03</span> Methodology</h2>
+
+    <h3>Label</h3>
+    <p>
+      <code>target_decline</code> = 1 if a page's total April impressions
+      were lower than its total March impressions, else 0. This is an
+      <em>observed</em> cross-month outcome, not a category defined by a
+      rule — a deliberate correction after an earlier draft of this project
+      considered using the rule-derived <code>trend_direction</code> field.
+    </p>
+
+    <h3>Features</h3>
+    <p>Three signals, all knowable before the outcome window:</p>
+    <ul>
+      <li><code>march_impressions</code> — total March search impressions</li>
+      <li><code>march_clicks</code> — total March clicks</li>
+      <li><code>march_position</code> — traffic-weighted average March ranking position</li>
+    </ul>
+
+    <h3>Baseline</h3>
+    <p>
+      A transparent, hand-written rule: <code>score = 2 × log(1 + impressions)</code>,
+      with a plain reason code for pages with high visibility and a rankable
+      position. No fitted weights — readable by design.
+    </p>
+
+    <h3>Model</h3>
+    <p>
+      A depth-3 Decision Tree Classifier. Depth was kept shallow
+      deliberately: a tree a person can print and read teaches more than an
+      opaque model a few points stronger.
+    </p>
+
+    <h3>Validation design</h3>
+    <p>
+      A <code>GroupShuffleSplit</code> by client (test size 0.22, seed 42)
+      ensures no client's pages appear in both train and test. A naive
+      random split — ignoring client grouping — was also run, specifically
+      to make the cost of skipping this step visible rather than assumed.
+    </p>
+
+    <h3>Leakage checks</h3>
+    <p>
+      Two independent leakage tests were run over the course of this
+      project, each by deliberately injecting a feature that determines the
+      label by construction and confirming the score jumps sharply:
+    </p>
+    <table>
+      <tr><th>Test</th><th>Injected feature</th><th>Honest score</th><th>Score with leak</th></tr>
+      <tr><td>Warehouse data (real GSC signals)</td><td><code>april_impressions</code></td><td class="metric">0.611</td><td class="metric">0.991</td></tr>
+      <tr><td>Starter dataset (teaching exercise)</td><td><code>gsc_clicks</code></td><td class="metric">0.876</td><td class="metric">1.000</td></tr>
+    </table>
+    <p>
+      Both harnesses correctly detected the injected leak, which increases
+      confidence that the "no leakage found" conclusion on the real feature
+      set is genuine rather than a blind spot in the test itself. On the
+      final feature set, no feature correlated with the target above 0.04
+      in magnitude — no disguised label proxy was found.
+    </p>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wide">
+    <h2><span class="num">04</span> Results</h2>
+    <p>
+      All numbers below come from the identical held-out test set — 11
+      clients never seen during training — scored with the same metric,
+      Average Precision.
+    </p>
+
+    <table>
+      <tr><th>Method</th><th>Average Precision</th></tr>
+      <tr><td>Base rate (naive, majority-share)</td><td class="metric">0.578</td></tr>
+      <tr><td>Week-4 rule baseline (recomputed on this test set)</td><td class="metric">0.587</td></tr>
+      <tr><td>Decision Tree — naive random split (leakage risk)</td><td class="metric">0.674</td></tr>
+      <tr class="highlight"><td>Decision Tree — honest grouped split</td><td class="metric">0.611</td></tr>
+    </table>
+
+    <figure>
+      <img src="img/results_comparison.png" alt="Bar chart comparing Average Precision across base rate, rule baseline, naive split, and honest grouped split">
+      <figcaption>
+        The honest grouped-split model (0.611) beats both the base rate
+        (0.578) and the recomputed rule baseline (0.587); the naive random
+        split (0.674) shows how much a leaky evaluation would have
+        overstated performance.
+      </figcaption>
+    </figure>
+
+    <p>
+      Reading this honestly: the model adds real but modest skill —
+      roughly three points of Average Precision above the rule baseline,
+      and roughly three points above chance. The naive split's higher
+      number is not a better result; it is the size of the leakage the
+      grouped split closes.
+    </p>
+
+    <figure>
+      <img src="img/w07_feature_importance.png" alt="Bar chart of decision tree feature importance">
+      <figcaption>
+        Feature importance in the honest grouped-split model:
+        march_impressions (0.42), march_position (0.31), march_clicks
+        (0.27). All three contribute; none dominates completely — a
+        directional signal from one model on one split, not a causal claim
+        about what drives decline.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="limitations">
+  <div class="wide">
+    <h2><span class="num">05</span> Limitations</h2>
+    <div class="limits-grid">
+      <div class="limit-card">
+        <div class="tag">OBSERVATIONAL</div>
+        <p>Nothing here proves that refreshing a page causes a change in
+        performance — only that certain March signals are associated with
+        an April decline.</p>
+      </div>
+      <div class="limit-card">
+        <div class="tag">MODEST SKILL</div>
+        <p>0.611 vs a 0.578 base rate is a real but small improvement.
+        This is decision-support, not a high-confidence forecast.</p>
+      </div>
+      <div class="limit-card">
+        <div class="tag">COARSE RANKING</div>
+        <p>The shallow tree produces only a handful of distinct probability
+        values — read "priority" as tiers, not a strict page-by-page order.</p>
+      </div>
+      <div class="limit-card">
+        <div class="tag">NARROW FEATURES</div>
+        <p>Three signals cannot capture content quality, competitor moves,
+        or algorithm changes — a page can decline for reasons invisible to
+        this model.</p>
+      </div>
+      <div class="limit-card">
+        <div class="tag">LIMITED POPULATION</div>
+        <p>Trained on 36 clients, tested on 11, from one 17-month snapshot
+        — not validated on clients or periods outside this dataset.</p>
+      </div>
+      <div class="limit-card">
+        <div class="tag">GLOBAL WINDOW</div>
+        <p>One March/April window was used for every client, without
+        checking each client's individual history depth.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="recommendations">
+  <div class="wide">
+    <h2><span class="num">06</span> Ranked recommendations</h2>
+    <p>
+      The validated model scores each held-out page with a decline
+      probability, grouped into plain-language priority tiers — not a
+      black-box number alone.
+    </p>
+
+    <div class="rec">
+      <div class="rec-head">
+        <strong>High-visibility, weak rank</strong>
+        <span class="rec-tag">REVIEW FIRST</span>
+      </div>
+      <p>
+        Pages that still carry meaningful visibility but show signs of
+        slipping rank. The closest match in this project's own data to the
+        FlyRank research paper's freshness-window finding (a 7.88:1
+        growth-to-decline ratio at 31–90 days) — offered as a directional
+        rationale for prioritization, not a causal guarantee.
+      </p>
+    </div>
+
+    <div class="rec">
+      <div class="rec-head">
+        <strong>Low-visibility pages, any rank</strong>
+        <span class="rec-tag">LOW PRIORITY</span>
+      </div>
+      <p>
+        Limited traffic means limited value in a manual review right now,
+        and any change in a small impression count is closer to noise than
+        signal.
+      </p>
+    </div>
+
+    <div class="no-go">
+      <h3>Human review is mandatory — never automated</h3>
+      <ul>
+        <li>Publishing content changes based on the model's ranking</li>
+        <li>Deindexing or deprioritizing a page without a human reading it</li>
+        <li>Using the score as a performance metric for a writer or editor</li>
+        <li>Treating decline probability as a certainty score rather than a rank</li>
+      </ul>
+      <p>
+        4,438 of 43,247 held-out pages (the bottom 10% by volume) are
+        explicitly flagged as needing extra review before acting — their
+        impression counts are small enough that normal noise could flip
+        the label.
+      </p>
+    </div>
+
+    <h3>Monitoring &amp; retrain triggers</h3>
+    <ul>
+      <li>Retrain if a future evaluation's Average Precision drifts back
+      toward the base rate — the current skill margin is 0.034.</li>
+      <li>Retrain if the client or content mix shifts materially from the
+      36 clients seen in training.</li>
+      <li>Retrain on a routine cadence (e.g. quarterly) to account for
+      algorithm and seasonality shifts this snapshot cannot see.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="reproducibility">
+  <div class="wrap">
+    <h2><span class="num">07</span> Reproducibility</h2>
+    <p>
+      Every number on this page was computed in a public notebook, with a
+      fixed random seed (<code>random_state=42</code>) throughout, using
+      scikit-learn's <code>GroupShuffleSplit</code> and
+      <code>DecisionTreeClassifier</code>.
+    </p>
+    <div class="repro-list">
+      <a href="https://github.com/Shahd799/flyrank-internship-1">→ Full repository</a>
+      <a href="https://github.com/Shahd799/flyrank-internship-1/blob/main/work/notebooks/w03_data_contract.ipynb">→ Data contract &amp; leakage trap (Week 3)</a>
+      <a href="https://github.com/Shahd799/flyrank-internship-1/blob/main/work/notebooks/w04_baseline_score.ipynb">→ Baseline rule (Week 4)</a>
+      <a href="https://github.com/Shahd799/flyrank-internship-1/blob/main/work/notebooks/w05_model.ipynb">→ Model training (Week 5)</a>
+      <a href="https://github.com/Shahd799/flyrank-internship-1/blob/main/work/notebooks/w06_validation_audit.ipynb">→ Validation audit &amp; leakage hunt (Week 6)</a>
+      <a href="https://github.com/Shahd799/flyrank-internship-1/blob/main/work/notebooks/w07_action_playbook.ipynb">→ Action playbook (Week 7)</a>
+      <a href="https://github.com/Shahd799/flyrank-internship-1/blob/main/work/notebooks/capstone.ipynb">→ Capstone notebook (this paper)</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="credit">
+      Built on the <strong>FlyRank ML Internship dataset</strong>.
+      Data provided by <a href="https://flyrank.ai">FlyRank</a>.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
